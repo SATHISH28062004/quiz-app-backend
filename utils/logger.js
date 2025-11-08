@@ -4,7 +4,6 @@ import fs from "fs";
 
 const { combine, timestamp, json, colorize, align, printf } = winston.format;
 
-// Check if we're in production (Render, Heroku, etc.)
 const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER;
 
 // Create logs directory only in development
@@ -24,13 +23,13 @@ const consoleTransport = new winston.transports.Console({
   ),
 });
 
-// File transports only for development
+// Define transports & handlers
 const fileTransports = [];
 const exceptionHandlers = [];
 const rejectionHandlers = [];
 
+// 🧩 Add file handlers only in dev
 if (!isProduction) {
-  // File rotation transport for development
   const fileRotateTransport = new winston.transports.DailyRotateFile({
     filename: "logs/application-%DATE%.log",
     datePattern: "YYYY-MM-DD",
@@ -42,25 +41,27 @@ if (!isProduction) {
   fileTransports.push(fileRotateTransport);
   exceptionHandlers.push(new winston.transports.File({ filename: "logs/exception.log" }));
   rejectionHandlers.push(new winston.transports.File({ filename: "logs/rejection.log" }));
+} else {
+  // 🩵 Add safe console handlers for production
+  exceptionHandlers.push(consoleTransport);
+  rejectionHandlers.push(consoleTransport);
 }
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || (isProduction ? "warn" : "info"),
   format: combine(
-    timestamp({
-      format: "YYYY-MM-DD hh:mm:ss.SSS A",
-    }),
+    timestamp({ format: "YYYY-MM-DD hh:mm:ss.SSS A" }),
     json()
   ),
-  transports: [
-    consoleTransport,
-    ...fileTransports,
-  ],
-  exceptionHandlers: exceptionHandlers,
-  rejectionHandlers: rejectionHandlers,
+  transports: [consoleTransport, ...fileTransports],
+  exceptionHandlers,
+  rejectionHandlers,
+
+  // 🚀 Prevent Winston from crashing app on error
+  exitOnError: false,
 });
 
-// Add production-specific logging
+// Add environment-specific startup message
 if (isProduction) {
   logger.info("🚀 Production logging enabled - logs will appear in Render console");
   logger.info(`📊 Log level: ${logger.level}`);
